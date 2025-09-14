@@ -80,33 +80,3 @@ This custom node for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) allows
 ## Disclaimer
 
 This node interacts with external services (Google Drive). Please ensure you understand the implications of granting access and storing your service account key securely. The author is not responsible for any issues arising from the use of this node.
-
-```
-
-### 5. `.gitignore`
-
-忽略不必要的文件。
-
-
-
-### 6. `examples/example_workflow.json` (可选)
-
-你可以创建一个简单的示例工作流 JSON 文件放在 `examples` 文件夹中，方便用户快速上手。
-
-**后续步骤:**
-
-1.  **创建 GitHub 仓库:** 在 GitHub 上创建一个名为 `comfyui_gdrive_uploader` (或你喜欢的名字) 的新仓库。
-2.  **上传代码:** 将上述创建的文件（除了 `service_account_key.json`）添加到你的本地仓库，然后推送到 GitHub。
-    ```bash
-    git init
-    git add .
-    git commit -m "Initial commit: Google Drive Uploader Node"
-    git remote add origin https://github.com/yourusername/comfyui_gdrive_uploader.git
-    git branch -M main
-    git push -u origin main
-    ```
-3.  **配置 Google Drive (用户操作):** 按照 `README.md` 中的说明，用户需要自己创建 Google Cloud 项目，启用 API，并下载 Service Account 密钥文件 `service_account_key.json`，然后将其放入克隆下来的节点目录中。
-4.  **通过 ComfyUI Manager 安装 (用户操作):** 用户在 ComfyUI Manager 中搜索并安装你的节点。Manager 会自动处理 `requirements.txt`。
-5.  **通过 `git clone` 安装 (用户操作):** 用户克隆仓库后，启动 ComfyUI。节点的 `__init__.py` 会尝试检查并安装依赖。
-
-这个方案应该能满足你的需求，提供一键安装和使用的体验。   
