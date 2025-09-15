@@ -8,6 +8,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import logging
+import json
 
 # --- Configuration ---
 # Path to your Service Account JSON key file
@@ -17,6 +18,32 @@ SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "service_account_
 SCOPES = ['https://www.googleapis.com/auth/drive.file'] # Only file access for drive
 # Default folder ID (optional, if you want to upload to a specific folder)
 DEFAULT_FOLDER_ID = None # e.g., 'your_folder_id_here' or leave as None for root
+
+try:
+    if not os.path.exists(SERVICE_ACCOUNT_FILE):
+        error_msg = f"Service account key file not found at {SERVICE_ACCOUNT_FILE}. Please download it from Google Cloud Console and place it here."
+        logger.error(error_msg)
+        return { "ui": { "images": [] } }
+
+    # 验证 JSON 格式是否完整
+    with open(SERVICE_ACCOUNT_FILE, 'r') as f:
+        key_data = json.load(f)
+        required_fields = ['type', 'client_email', 'token_uri', 'private_key']
+        missing_fields = [field for field in required_fields if field not in key_data]
+        if missing_fields:
+            error_msg = f"Service account key file is invalid. Missing required fields: {missing_fields}. Please download a fresh key from Google Cloud Console."
+            logger.error(error_msg)
+            return { "ui": { "images": [] } }
+
+    credentials = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    service = build('drive', 'v3', credentials=credentials)
+    logger.info("Successfully authenticated with Google Drive API.")
+
+except Exception as e:
+    error_msg = f"Failed to authenticate with Google Drive API: {e}"
+    logger.error(error_msg)
+    return { "ui": { "images": [] } }
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO) # Change to WARNING or ERROR in production
