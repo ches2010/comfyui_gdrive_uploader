@@ -7,16 +7,47 @@ import requests
 import json
 import logging
 import time
-import uuid # For generating unique filenames if needed
+import uuid
 
 # --- Configuration ---
-# These should ideally be configurable by the user or loaded from a secure config file/env
-CLIENT_ID = os.environ.get("ONEDRIVE_CLIENT_ID", "YOUR_ONEDRIVE_APP_CLIENT_ID")
-CLIENT_SECRET = os.environ.get("ONEDRIVE_CLIENT_SECRET", "YOUR_ONEDRIVE_APP_CLIENT_SECRET")
-REDIRECT_URI = "http://localhost:8080" # Standard for device code flow example, adjust if needed
+# Path to the config file
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
+TOKEN_FILE = os.path.join(os.path.dirname(__file__), "onedrive_token.json") # Keep token file path
 
-# Token file path (store securely, e.g., in user's home directory or node config)
-TOKEN_FILE = os.path.join(os.path.dirname(__file__), "onedrive_token.json")
+# Default placeholders (fallback if config file is missing/invalid)
+CLIENT_ID_DEFAULT = "YOUR_ONEDRIVE_APP_CLIENT_ID_PLACEHOLDER"
+CLIENT_SECRET_DEFAULT = "YOUR_ONEDRIVE_APP_CLIENT_SECRET_PLACEHOLDER"
+
+# Load configuration from file
+def load_config():
+    """Loads configuration from config.json."""
+    config_data = {
+        "client_id": CLIENT_ID_DEFAULT,
+        "client_secret": CLIENT_SECRET_DEFAULT
+    }
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f: # Specify encoding for safety
+                data = json.load(f)
+                # Safely extract values, fallback to defaults if not found
+                onedrive_config = data.get("onedrive", {})
+                config_data["client_id"] = onedrive_config.get("client_id", CLIENT_ID_DEFAULT)
+                config_data["client_secret"] = onedrive_config.get("client_secret", CLIENT_SECRET_DEFAULT)
+            
+            # Optional: Basic validation to warn if defaults are still used
+            if config_data["client_id"] == CLIENT_ID_DEFAULT or config_data["client_secret"] == CLIENT_SECRET_DEFAULT:
+                 logging.getLogger(__name__).warning(f"One or more credentials in {CONFIG_FILE} are using default placeholder values. Please update them.")
+            
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to load or parse {CONFIG_FILE}: {e}. Using default placeholders.")
+    else:
+        logging.getLogger(__name__).warning(f"Configuration file {CONFIG_FILE} not found. Using default placeholders.")
+    return config_data
+
+# Load config at module import time
+config = load_config()
+CLIENT_ID = config["client_id"]
+CLIENT_SECRET = config["client_secret"]
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO) # Change to WARNING or ERROR in production
@@ -49,8 +80,8 @@ def refresh_access_token(refresh_token):
     """Refreshes the access token using the refresh token."""
     url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
     data = {
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
+        'client_id': CLIENT_ID, # Use loaded CLIENT_ID
+        'client_secret': CLIENT_SECRET, # Use loaded CLIENT_SECRET
         'grant_type': 'refresh_token',
         'refresh_token': refresh_token
     }
@@ -58,9 +89,7 @@ def refresh_access_token(refresh_token):
         response = requests.post(url, data=data)
         response.raise_for_status()
         token_data = response.json()
-        # Update the refresh token if a new one is provided
         if 'refresh_token' in token_data:
-             # The new refresh token should be saved
              save_token(token_data)
         return token_data.get('access_token')
     except requests.exceptions.RequestException as e:
@@ -78,8 +107,7 @@ def get_access_token():
     expires_at = token_data.get('expires_at', 0)
     refresh_token = token_data.get('refresh_token')
 
-    # Check if token is expired (with a small buffer)
-    if time.time() > (expires_at - 300): # 5 minutes buffer
+    if time.time() > (expires_at - 300):
         if refresh_token:
             logger.info("Access token expired, refreshing...")
             access_token = refresh_access_token(refresh_token)
@@ -97,8 +125,8 @@ def initiate_auth_flow():
     """Initiates the device code flow for authentication."""
     url = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
     data = {
-        'client_id': CLIENT_ID,
-        'scope': 'Files.ReadWrite.All offline_access' # offline_access is needed for refresh tokens
+        'client_id': CLIENT_ID, # Use loaded CLIENT_ID
+        'scope': 'Files.ReadWrite.All offline_access'
     }
     try:
         response = requests.post(url, data=data)
@@ -113,12 +141,11 @@ def initiate_auth_flow():
         print("3. Approve the request.")
         print("="*50 + "\n")
 
-        # Poll for the token
         token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
         token_data = {
             'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
-            'client_id': CLIENT_ID,
-            'client_secret': CLIENT_SECRET,
+            'client_id': CLIENT_ID, # Use loaded CLIENT_ID
+            'client_secret': CLIENT_SECRET, # Use loaded CLIENT_SECRET
             'device_code': device_code_data['device_code']
         }
 
@@ -126,7 +153,6 @@ def initiate_auth_flow():
             token_response = requests.post(token_url, data=token_data)
             if token_response.status_code == 200:
                 token_json = token_response.json()
-                # Add expiration time
                 token_json['expires_at'] = time.time() + token_json.get('expires_in', 3600)
                 save_token(token_json)
                 print("Authentication successful! Tokens saved.")
@@ -134,11 +160,9 @@ def initiate_auth_flow():
             elif token_response.status_code == 400:
                 error = token_response.json().get('error')
                 if error == 'authorization_pending':
-                    # Wait before polling again
                     time.sleep(device_code_data.get('interval', 5))
                     continue
                 elif error == 'slow_down':
-                    # Server asked to slow down
                     time.sleep(device_code_data.get('interval', 5) + 5)
                     continue
                 elif error == 'expired_token':
@@ -160,18 +184,10 @@ def initiate_auth_flow():
 
 def upload_to_onedrive(file_path, access_token, folder_path="/ComfyUI Uploads"):
     """Uploads a file to OneDrive."""
-    # 1. Get Drive Item ID for the target folder (or root if not specified)
-    folder_id = "root" # Default to root
+    folder_id = "root"
     if folder_path and folder_path != "/":
-        # This is a simplified path resolution. For complex nested paths,
-        # you'd need to iterate through each folder level.
-        # We'll assume it's a direct child of root for simplicity here.
-        # A more robust solution would parse the path and navigate.
-        # For now, we'll just use the folder name as an item name under root.
-        # This means it won't create nested folders automatically.
         folder_name = os.path.basename(folder_path.rstrip('/'))
         if folder_name:
-             # Try to find the folder ID by name under root
              search_url = f"https://graph.microsoft.com/v1.0/me/drive/root/children"
              headers = {'Authorization': f'Bearer {access_token}'}
              try:
@@ -184,7 +200,6 @@ def upload_to_onedrive(file_path, access_token, folder_path="/ComfyUI Uploads"):
                          logger.info(f"Found folder '{folder_name}' with ID: {folder_id}")
                          break
                  else:
-                     # Folder not found, create it
                      logger.info(f"Folder '{folder_name}' not found, creating it...")
                      create_folder_url = f"https://graph.microsoft.com/v1.0/me/drive/root/children"
                      folder_metadata = {
@@ -198,16 +213,13 @@ def upload_to_onedrive(file_path, access_token, folder_path="/ComfyUI Uploads"):
 
              except requests.exceptions.RequestException as e:
                   logger.error(f"Error finding/creating folder '{folder_path}': {e}. Uploading to root.")
-                  folder_id = "root" # Fallback to root
+                  folder_id = "root"
 
-    # 2. Upload the file
     filename = os.path.basename(file_path)
-    # Using PUT /me/drive/items/{parent-id}:/{filename}:/content
     upload_url = f"https://graph.microsoft.com/v1.0/me/drive/items/{folder_id}:/{filename}:/content"
 
     headers = {
         'Authorization': f'Bearer {access_token}',
-        # 'Content-Type' will be set automatically by requests based on the file
     }
     try:
         with open(file_path, 'rb') as f:
@@ -218,12 +230,10 @@ def upload_to_onedrive(file_path, access_token, folder_path="/ComfyUI Uploads"):
         return uploaded_file_info
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to upload file '{file_path}': {e}")
-        # Print response text for more details on the error
         if hasattr(e, 'response') and e.response is not None:
             logger.error(f"Response text: {e.response.text}")
         return None
 
-# --- Node Class ---
 
 class ComfyUIOneDriveUploader:
     """
@@ -241,8 +251,8 @@ class ComfyUIOneDriveUploader:
             "required": {
                 "images": ("IMAGE", ),
                 "filename_prefix": ("STRING", {"default": "OneDriveUpload"}),
-                "onedrive_folder_path": ("STRING", {"default": "/ComfyUI Uploads"}), # Path like /MyFolder/SubFolder
-                "authenticate": ("BOOLEAN", {"default": False}), # Button to trigger auth
+                "onedrive_folder_path": ("STRING", {"default": "/ComfyUI Uploads"}),
+                "authenticate": ("BOOLEAN", {"default": False}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -261,57 +271,41 @@ class ComfyUIOneDriveUploader:
         """
         logger.info("Starting OneDrive upload and preview process...")
 
-        # --- Handle Authentication Trigger ---
         if authenticate:
             logger.info("Authentication trigger received.")
             auth_success = initiate_auth_flow()
             if not auth_success:
                  logger.error("Authentication failed or cancelled.")
-                 # Return empty UI update on auth failure
                  return { "ui": { "images": [] } }
 
-        # --- Get Access Token ---
         access_token = get_access_token()
         if not access_token:
             error_msg = "No valid access token available. Please authenticate first."
             logger.error(error_msg)
-            # Return empty UI update if no token
             return { "ui": { "images": [] } }
 
 
-        # --- Process and Upload Images ---
-        results = [] # For UI preview
+        results = []
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
-            # Note: Saving metadata like prompt is more complex with OneDrive API for direct content upload
-            # It's often done via creating an upload session and then patching metadata afterwards.
-            # For simplicity here, we focus on the image data upload.
 
-            # Generate filename
             filename_with_batch_num = filename_prefix.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{batch_number:05}_{uuid.uuid4().hex[:8]}.png" # Add unique part
+            file = f"{filename_with_batch_num}_{batch_number:05}_{uuid.uuid4().hex[:8]}.png"
             local_file_path = os.path.join(self.output_dir, file)
 
-            # Save locally first
             img.save(local_file_path, pnginfo=metadata, compress_level=self.compress_level)
             logger.info(f"Saved temporary image locally: {local_file_path}")
 
-            # --- Upload to OneDrive ---
             uploaded_file_info = upload_to_onedrive(local_file_path, access_token, onedrive_folder_path)
             if uploaded_file_info:
                 logger.info(f'Image uploaded successfully to OneDrive.')
-                # Prepare UI update info for preview (standard for output nodes)
-                # This tells ComfyUI frontend to display the image from the output directory
                 results.append({
                     "filename": file,
-                    "subfolder": "", # Assuming saved in main output dir
+                    "subfolder": "",
                     "type": self.type
                 })
-                # Optional: Delete the local temporary file after successful upload
-                # os.remove(local_file_path)
-                # logger.info(f"Deleted temporary local file: {local_file_path}")
             else:
                 error_msg = f"Failed to upload image {file} to OneDrive."
                 logger.error(error_msg)
@@ -321,10 +315,9 @@ class ComfyUIOneDriveUploader:
                     "type": self.type
                 })
 
-        # Return UI update info (enables preview in node)
         return { "ui": { "images": results } }
 
-# Node Registration
+
 NODE_CLASS_MAPPINGS = {
     "OneDriveUploader": ComfyUIOneDriveUploader
 }
@@ -334,6 +327,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 # --- Initial Setup Check ---
-# This could be placed in __init__.py instead
-if not CLIENT_ID or not CLIENT_SECRET or CLIENT_ID == "YOUR_ONEDRIVE_APP_CLIENT_ID":
-    logger.warning("OneDrive Client ID or Secret not configured. Please set ONEDRIVE_CLIENT_ID and ONEDRIVE_CLIENT_SECRET environment variables or update the node code.")
+# This check now uses the loaded config
+if CLIENT_ID == CLIENT_ID_DEFAULT or CLIENT_SECRET == CLIENT_SECRET_DEFAULT:
+    logger.warning("OneDrive Client ID or Secret seems to be using default placeholders. Please update 'config.json' with your actual credentials.")
