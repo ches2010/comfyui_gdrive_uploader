@@ -70,6 +70,72 @@ This custom node for [ComfyUI](https://github.com/comfyanonymous/ComfyUI) allows
 *   **Default Folder:** You can set a default Google Drive folder ID by modifying the `DEFAULT_FOLDER_ID` variable in `gdrive_uploader_node.py`.
 *   **Scopes:** The default scope `https://www.googleapis.com/auth/drive.file` allows the service account to manage files it creates. If you need broader access (e.g., to upload to *any* folder regardless of ownership), you might need to adjust the `SCOPES` list in `gdrive_uploader_node.py` and ensure your service account has the correct permissions, but this is generally not recommended for security.
 
+## OneDrive Uploader Node
+
+This node allows uploading images directly to Microsoft OneDrive and provides a live preview within ComfyUI.
+
+### Prerequisites
+
+1.  **Register an App in Azure AD:**
+    *   Go to the [Azure Portal](https://portal.azure.com/).
+    *   Navigate to "Azure Active Directory" -> "App registrations" -> "New registration".
+    *   Give your app a name (e.g., `ComfyUI OneDrive Uploader`).
+    *   Select "Accounts in any organizational directory (Any Azure AD directory - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)" for supported account types.
+    *   For Redirect URI, select "Public client/native (mobile & desktop)" and enter `http://localhost:8080` (or another localhost URI you prefer, but update `REDIRECT_URI` in the node code accordingly).
+    *   Click "Register".
+2.  **Configure App Permissions:**
+    *   Go to your newly created app's page.
+    *   Under "Manage", click "API permissions" -> "Add a permission" -> "Microsoft Graph" -> "Delegated permissions".
+    *   Search for and add:
+        *   `Files.ReadWrite.All`
+        *   `offline_access` (Essential for refresh tokens)
+    *   Click "Add permissions".
+    *   You might need an admin to grant consent for `Files.ReadWrite.All` if your account requires it. For personal accounts, you can usually consent yourself later.
+3.  **Get Client ID and (Optional) Client Secret:**
+    *   Under "Manage", click "Overview". Copy the "Application (client) ID". This is your `CLIENT_ID`.
+    *   (Optional but Recommended for better security) Under "Manage", click "Certificates & secrets" -> "Client secrets" -> "New client secret". Create a secret and copy its value. This is your `CLIENT_SECRET`.
+
+### Configuration
+
+You need to provide the `CLIENT_ID` and optionally `CLIENT_SECRET`.
+
+**Method 1: Environment Variables (Recommended)**
+*   Set the following environment variables before starting ComfyUI:
+    ```bash
+    export ONEDRIVE_CLIENT_ID=your_application_client_id_here
+    export ONEDRIVE_CLIENT_SECRET=your_application_client_secret_here # Optional
+    ```
+*   Restart ComfyUI.
+
+**Method 2: Hardcode (Less Secure)**
+*   Open `onedrive_uploader_node.py`.
+*   Find the lines:
+    ```python
+    CLIENT_ID = os.environ.get("ONEDRIVE_CLIENT_ID", "YOUR_ONEDRIVE_APP_CLIENT_ID")
+    CLIENT_SECRET = os.environ.get("ONEDRIVE_CLIENT_SECRET", "YOUR_ONEDRIVE_APP_CLIENT_SECRET")
+    ```
+*   Replace `"YOUR_ONEDRIVE_APP_CLIENT_ID"` and `"YOUR_ONEDRIVE_APP_CLIENT_SECRET"` with your actual values.
+*   Save the file and restart ComfyUI.
+
+### Initial Authentication
+
+1.  Add the "Upload to OneDrive" node to your workflow.
+2.  Check the `authenticate` boolean input box on the node.
+3.  Run the workflow.
+4.  The ComfyUI console/log will display a message with a URL and a code.
+5.  Open the URL in your browser and enter the code.
+6.  Sign in to your Microsoft account and grant the requested permissions.
+7.  The node will automatically receive the tokens and save them locally (`onedrive_token.json` in the node's directory).
+8.  Uncheck the `authenticate` box for subsequent runs.
+
+### Usage
+
+1.  Connect an image output to the `images` input.
+2.  Set a `filename_prefix` if desired.
+3.  Specify the `onedrive_folder_path` (e.g., `/MyFolder` or `/MyFolder/SubFolder`). The node will attempt to create the folder if it doesn't exist under the root.
+4.  Ensure the `authenticate` box is **unchecked**.
+5.  Run the workflow. The image should appear in the node's preview window and be uploaded to your OneDrive.
+
 ## Troubleshooting
 
 *   **Dependencies not installing:** Ensure ComfyUI is run with the correct Python environment. Check ComfyUI logs for errors during startup related to dependency installation.
