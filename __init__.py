@@ -60,5 +60,14 @@ else:
 # if it's the very first run. ComfyUI might need a restart after initial install.
 from .gdrive_uploader_node import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
+
+# Import the OneDrive node class
+from .onedrive_uploader_node import NODE_CLASS_MAPPINGS as ONEDRIVE_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as ONEDRIVE_NODE_DISPLAY_NAME_MAPPINGS
+
+# Merge the mappings
+NODE_CLASS_MAPPINGS.update(ONEDRIVE_NODE_CLASS_MAPPINGS)
+NODE_DISPLAY_NAME_MAPPINGS.update(ONEDRIVE_NODE_DISPLAY_NAME_MAPPINGS)
+
+
 # --- Export Symbols ---
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
