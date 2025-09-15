@@ -42,7 +42,8 @@ Thumbs.db
 
 # ... (existing content)
 # OneDrive specific
-onedrive_token.json # Do NOT commit your tokens!
+onedrive_token.json
+config.json # Do NOT commit your credentials!
 
 # Specific to this project
 service_account_key.json # Do NOT commit your actual key file!
