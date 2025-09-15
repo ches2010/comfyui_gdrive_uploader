@@ -118,6 +118,84 @@ echo Dependencies installed successfully. You can now start ComfyUI.
 pause
 ```
 
+## OneDrive 上传节点 (OneDrive Uploader Node)
+
+此节点允许将图像直接上传到 Microsoft OneDrive，并在 ComfyUI 内提供实时预览。
+
+### 先决条件 (Prerequisites)
+
+1.  **在 Azure AD 中注册应用 (Register an App in Azure AD):**
+    *   访问 [Azure 门户](https://portal.azure.com/)。
+    *   导航到 "Azure Active Directory" -> "应用注册" -> "新注册"。
+    *   为您的应用命名（例如，`ComfyUI OneDrive Uploader`）。
+    *   对于受支持的帐户类型，选择 "任何组织目录(任何 Azure AD 目录 - 多租户)和个人 Microsoft 帐户(例如 Skype, Xbox)"。
+    *   对于重定向 URI，选择 "公共客户端/移动和桌面应用" 并输入 `http://localhost:8080` (或者您喜欢的其他本地主机 URI，但需要相应地更新节点代码中的 `REDIRECT_URI`)。
+    *   点击 "注册"。
+2.  **配置应用权限 (Configure App Permissions):**
+    *   转到您新创建的应用页面。
+    *   在 "管理" 下，点击 "API 权限" -> "添加权限" -> "Microsoft Graph" -> "委派的权限"。
+    *   搜索并添加以下权限：
+        *   `Files.ReadWrite.All` (读写用户的所有文件)
+        *   `offline_access` (获取刷新令牌，对于长时间运行或需要重新授权的任务至关重要)
+    *   点击 "添加权限"。
+    *   如果您的帐户需要管理员同意，您可能需要管理员为 `Files.ReadWrite.All` 授权。对于个人 Microsoft 帐户，您通常可以在稍后自行同意。
+3.  **获取客户端 ID 和 (可选) 客户端密码 (Get Client ID and (Optional) Client Secret):**
+    *   在 "管理" 下，点击 "概述"。复制 "应用程序(客户端) ID"。这就是您的 `CLIENT_ID`。
+    *   **(可选但推荐，用于更好的安全性)** 在 "管理" 下，点击 "证书和密码" -> "客户端密码" -> "新建客户端密码"。创建一个密码并复制其值。这就是您的 `CLIENT_SECRET`。
+
+### 配置 (Configuration)
+
+您需要提供 `CLIENT_ID`，推荐也提供 `CLIENT_SECRET`。
+
+**方法 1: 环境变量 (推荐) (Method 1: Environment Variables (Recommended))**
+*   在启动 ComfyUI *之前* 设置以下环境变量：
+    ```bash
+    # Linux/macOS
+    export ONEDRIVE_CLIENT_ID=your_application_client_id_here
+    export ONEDRIVE_CLIENT_SECRET=your_application_client_secret_here # 可选 (Optional)
+
+    # Windows (命令提示符)
+    set ONEDRIVE_CLIENT_ID=your_application_client_id_here
+    set ONEDRIVE_CLIENT_SECRET=your_application_client_secret_here
+
+    # Windows (PowerShell)
+    $env:ONEDRIVE_CLIENT_ID="your_application_client_id_here"
+    $env:ONEDRIVE_CLIENT_SECRET="your_application_client_secret_here"
+    ```
+*   重启 ComfyUI。
+
+**方法 2: 硬编码 (安全性较低) (Method 2: Hardcode (Less Secure))**
+*   打开 `onedrive_uploader_node.py` 文件。
+*   找到以下几行：
+    ```python
+    CLIENT_ID = os.environ.get("ONEDRIVE_CLIENT_ID", "YOUR_ONEDRIVE_APP_CLIENT_ID")
+    CLIENT_SECRET = os.environ.get("ONEDRIVE_CLIENT_SECRET", "YOUR_ONEDRIVE_APP_CLIENT_SECRET")
+    ```
+*   将 `"YOUR_ONEDRIVE_APP_CLIENT_ID"` 和 `"YOUR_ONEDRIVE_APP_CLIENT_SECRET"` 替换为您在 Azure 门户上获得的实际值。
+*   保存文件并重启 ComfyUI。
+
+### 初始认证 (Initial Authentication)
+
+首次使用节点上传文件前，您需要进行一次认证以获取访问令牌。
+
+1.  将 "Upload to OneDrive" 节点添加到您的工作流中。
+2.  勾选节点上的 `authenticate` (认证) 布尔输入框。
+3.  运行工作流。
+4.  ComfyUI 的控制台/日志将显示一条消息，其中包含一个 URL 和一个代码。
+5.  在您的浏览器中打开该 URL 并输入代码。
+6.  登录您的 Microsoft 帐户并授予所请求的权限。
+7.  节点将自动接收令牌并将其保存在本地 (`onedrive_token.json`，位于节点目录下)。
+8.  **后续运行时，请取消勾选 `authenticate` 框。**
+
+### 使用方法 (Usage)
+
+1.  将图像输出连接到 `images` 输入。
+2.  如果需要，可以设置 `filename_prefix` (文件名前缀)。
+3.  指定 `onedrive_folder_path` (OneDrive 文件夹路径，例如 `/MyFolder` 或 `/MyFolder/SubFolder`)。如果该文件夹在根目录下不存在，节点会尝试创建它。
+4.  确保 `authenticate` (认证) 框 **未被勾选**。
+5.  运行工作流。图像应该会出现在节点的预览窗口中，并且会被上传到您的 OneDrive。
+
+
 ## 六、注意事项
 1. **凭证安全**：`client_secret.json`是用户个人的密钥，请勿上传到公共仓库，避免安全风险。
 2. **权限范围**：本节点仅请求`drive.file`权限，仅能操作通过该应用上传的文件，避免过度授权。
