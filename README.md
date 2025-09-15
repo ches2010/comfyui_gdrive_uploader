@@ -145,34 +145,29 @@ pause
 
 ### 配置 (Configuration)
 
-您需要提供 `CLIENT_ID`，推荐也提供 `CLIENT_SECRET`。
+您需要提供 `CLIENT_ID` 和 `CLIENT_SECRET`。推荐使用配置文件。
 
-**方法 1: 环境变量 (推荐) (Method 1: Environment Variables (Recommended))**
-*   在启动 ComfyUI *之前* 设置以下环境变量：
-    ```bash
-    # Linux/macOS
-    export ONEDRIVE_CLIENT_ID=your_application_client_id_here
-    export ONEDRIVE_CLIENT_SECRET=your_application_client_secret_here # 可选 (Optional)
-
-    # Windows (命令提示符)
-    set ONEDRIVE_CLIENT_ID=your_application_client_id_here
-    set ONEDRIVE_CLIENT_SECRET=your_application_client_secret_here
-
-    # Windows (PowerShell)
-    $env:ONEDRIVE_CLIENT_ID="your_application_client_id_here"
-    $env:ONEDRIVE_CLIENT_SECRET="your_application_client_secret_here"
-    ```
-*   重启 ComfyUI。
-
-**方法 2: 硬编码 (安全性较低) (Method 2: Hardcode (Less Secure))**
-*   打开 `onedrive_uploader_node.py` 文件。
-*   找到以下几行：
-    ```python
-    CLIENT_ID = os.environ.get("ONEDRIVE_CLIENT_ID", "YOUR_ONEDRIVE_APP_CLIENT_ID")
-    CLIENT_SECRET = os.environ.get("ONEDRIVE_CLIENT_SECRET", "YOUR_ONEDRIVE_APP_CLIENT_SECRET")
-    ```
+**方法 1: 使用配置文件 (推荐) (Method 1: Using Config File (Recommended))**
+*   在节点目录下找到 `config.json` 文件。
+*   用文本编辑器打开它。
 *   将 `"YOUR_ONEDRIVE_APP_CLIENT_ID"` 和 `"YOUR_ONEDRIVE_APP_CLIENT_SECRET"` 替换为您在 Azure 门户上获得的实际值。
 *   保存文件并重启 ComfyUI。
+
+    ```json
+    {
+        "onedrive": {
+            "client_id": "your_actual_client_id_here",
+            "client_secret": "your_actual_client_secret_here"
+        }
+    }
+    ```
+
+**方法 2: 环境变量 (Method 2: Environment Variables)**
+*   (仍然支持) 设置环境变量 `ONEDRIVE_CLIENT_ID` 和 `ONEDRIVE_CLIENT_SECRET`。
+*   重启 ComfyUI。
+
+**方法 3: 硬编码 (不推荐) (Method 3: Hardcode (Not Recommended))**
+*   *此方法已不推荐，使用 `config.json` 更好。*
 
 ### 初始认证 (Initial Authentication)
 
