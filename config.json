@@ -1,0 +1,10 @@
+{
+  "onedrive": {
+    "client_id": "你复制的 Application (client) ID",
+    "client_secret": ""
+  },
+  "telegram": {
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
+    "chat_id": "YOUR_CHAT_ID_HERE"
+  }
+}
