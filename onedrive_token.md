@@ -134,3 +134,80 @@ To sign in, use a web browser to open the page https://www.microsoft.com/link an
 - 如果你是组织账户（如学校/公司邮箱），请确认管理员允许你注册应用并授予权限
 - 如果你只想访问自己的 OneDrive，可以考虑使用 **个人微软账户**（如 outlook.com）
 - 如果你希望支持自动刷新令牌，可以启用 `offline_access` 权限
+
+---
+
+## ✅ 获取 `bot_token` 和 `chat_id`
+
+### 1. 创建 Telegram Bot
+
+- 在 Telegram 中搜索 `@BotFather`
+- 发送 `/start`
+- 发送 `/newbot`
+- 按提示输入 Bot 名称 和 用户名（必须以 `bot` 结尾，如 `MyComfyUIBot`）
+- BotFather 会返回一个 **API Token**，复制它填入 `bot_token`
+
+### 2. 获取 `chat_id`
+
+#### 方法一：群组/频道
+
+- 将你的 Bot 添加为群组管理员（或频道管理员）
+- 发送任意消息到群组
+- 访问以下链接（替换 `YOUR_BOT_TOKEN`）：
+
+```
+https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
+```
+
+- 查看返回的 JSON，找到 `"chat":{"id": -1001234567890}`，复制这个负数 ID
+
+> 注意：频道或超级群组的 ID 是负数，且以 `-100` 开头
+
+#### 方法二：私聊
+
+- 在 Telegram 中私聊你的 Bot
+- 发一条消息（如 "hi"）
+- 访问上面的 `getUpdates` 链接
+- 找到 `"chat":{"id": 123456789}`，复制这个正数 ID
+
+---
+
+## ✅ 第六步：重启 ComfyUI
+
+```bash
+python main.py
+```
+
+在节点菜单中搜索：
+
+> **📤 Post Image to Telegram**
+
+拖入工作流，连接图像输出，填写标题（支持 emoji 😊），运行即可！
+
+---
+
+## 🎉 功能亮点
+
+- ✅ 自动保存本地 + UI 预览（和 SaveImage 一致）
+- ✅ 发送到 Telegram 群组/频道/私聊
+- ✅ 支持自定义标题文本
+- ✅ 配置分离，安全不泄露 token
+- ✅ 认证失败时自动降级为本地预览，不中断流程
+- ✅ 日志清晰，便于调试
+
+---
+
+## 🚀 可选增强功能（后续可加）
+
+- 支持发送多图（Media Group）
+- 支持异步发送（不阻塞工作流）
+- 支持变量替换（如 `{seed}`, `{model}`）
+- 支持自动压缩/缩放大图
+- 支持代理（如在国内使用）
+
+---
+
+需要我帮你写一个 **自动获取 chat_id 的脚本**，或者 **支持变量替换的增强版**？随时告诉我！
+
+现在就去试试吧 —— 你的 AI 作品可以一键飞到 Telegram 群里惊艳所有人了！ 🚀🖼️
+
