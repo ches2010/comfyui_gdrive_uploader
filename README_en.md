@@ -136,6 +136,50 @@ You need to provide the `CLIENT_ID` and optionally `CLIENT_SECRET`.
 4.  Ensure the `authenticate` box is **unchecked**.
 5.  Run the workflow. The image should appear in the node's preview window and be uploaded to your OneDrive.
 
+---
+
+## 🆕 New: Telegram Image Poster Node
+
+Automatically post generated images to your Telegram group/channel!
+
+### 🔧 Setup
+
+1. Create a bot via `@BotFather` on Telegram to get a `bot_token`
+2. Get your `chat_id` (group or private chat) via `https://api.telegram.org/bot<TOKEN>/getUpdates`
+3. Edit `config.json` in this folder:
+
+```json
+{
+  "onedrive": {
+    "client_id": "your-onedrive-client-id",
+    "client_secret": ""
+  },
+  "telegram": {
+    "bot_token": "your-telegram-bot-token",
+    "chat_id": "your-chat-id"
+  }
+}
+```
+
+💡 Get Telegram bot_token from @BotFather, and chat_id via https://api.telegram.org/bot<TOKEN>/getUpdates
+
+---
+
+## ✅ 重启 ComfyUI 测试
+
+1. 保存所有文件
+2. 重启 ComfyUI
+3. 拖入 `📤 Post Image to Telegram` 节点
+4. 运行工作流 → 图片应正常发送到 Telegram + 本地预览
+
+---
+
+Install dependency:
+```bash
+pip install python-telegram-bot
+```
+Restart ComfyUI → Search node: 📤 Post Image to Telegram
+
 ## Troubleshooting
 
 *   **Dependencies not installing:** Ensure ComfyUI is run with the correct Python environment. Check ComfyUI logs for errors during startup related to dependency installation.
