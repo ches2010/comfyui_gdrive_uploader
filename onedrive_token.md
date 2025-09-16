@@ -137,9 +137,9 @@ To sign in, use a web browser to open the page https://www.microsoft.com/link an
 
 ---
 
-## ✅ 获取 `bot_token` 和 `chat_id`
+# ✅ 获取 `bot_token` 和 `chat_id`
 
-### 1. 创建 Telegram Bot
+## 1. 创建 Telegram Bot
 
 - 在 Telegram 中搜索 `@BotFather`
 - 发送 `/start`
@@ -147,9 +147,9 @@ To sign in, use a web browser to open the page https://www.microsoft.com/link an
 - 按提示输入 Bot 名称 和 用户名（必须以 `bot` 结尾，如 `MyComfyUIBot`）
 - BotFather 会返回一个 **API Token**，复制它填入 `bot_token`
 
-### 2. 获取 `chat_id`
+## 2. 获取 `chat_id`
 
-#### 方法一：群组/频道
+### 方法一：群组/频道
 
 - 将你的 Bot 添加为群组管理员（或频道管理员）
 - 发送任意消息到群组
@@ -163,7 +163,7 @@ https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
 
 > 注意：频道或超级群组的 ID 是负数，且以 `-100` 开头
 
-#### 方法二：私聊
+### 方法二：私聊
 
 - 在 Telegram 中私聊你的 Bot
 - 发一条消息（如 "hi"）
