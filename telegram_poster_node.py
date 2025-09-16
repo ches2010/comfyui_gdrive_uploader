@@ -16,24 +16,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Config File Path ---
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), "telegram_config.json")
+# ⬇️ 统一使用 config.json
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 
 # --- Load Config ---
 def load_telegram_config():
     if not os.path.exists(CONFIG_FILE):
-        logger.warning(f"⚠️ Config file not found: {CONFIG_FILE}. Please create it with 'bot_token' and 'chat_id'.")
+        logger.warning(f"⚠️ Config file not found: {CONFIG_FILE}. Please create it with 'telegram' section.")
         return None, None
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             config = json.load(f)
-            bot_token = config.get("bot_token", "").strip()
-            chat_id = config.get("chat_id", "").strip()
+            telegram_config = config.get("telegram", {})
+            bot_token = telegram_config.get("bot_token", "").strip()
+            chat_id = telegram_config.get("chat_id", "").strip()
             if not bot_token or not chat_id:
-                logger.error("❌ 'bot_token' or 'chat_id' missing in telegram_config.json")
+                logger.error("❌ 'bot_token' or 'chat_id' missing in config.json under 'telegram' section")
                 return None, None
             return bot_token, chat_id
     except Exception as e:
-        logger.error(f"❌ Failed to load config: {e}")
+        logger.error(f"❌ Failed to load Telegram config: {e}")
         return None, None
 
 
