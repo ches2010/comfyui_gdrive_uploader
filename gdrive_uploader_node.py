@@ -46,25 +46,26 @@ try:
         if missing_fields:
             raise ValueError(f"Service account key is invalid. Missing fields: {missing_fields}")
 
-    # ✅ 创建带代理的 session
+    # 创建带代理的 session
     session = requests.Session()
     session.proxies = PROXY
-    session.verify = True  # 保持 SSL 验证
-    
-    # ✅ 使用 session 初始化 credentials
+    session.verify = True
+
+    # 使用 session 初始化 credentials
     credentials = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
-    # ✅ 刷新 token（走代理）
-    credentials.refresh(GoogleAuthRequest(session=session))
+    # 刷新 token（走代理）
+    request = GoogleAuthRequest(session=session)
+    credentials.refresh(request)
 
-    # ✅ 构建 Drive 服务，指定 requestBuilder 使用代理 session
-    service = build(
-        'drive',
-        'v3',
-        credentials=credentials,
-        requestBuilder=lambda: GoogleAuthRequest(session=session)
-    )
+    # ✅ 构建 http 对象并注入自定义 session
+    from googleapiclient.http import build_http
+    http = build_http()
+    http._session = session
+
+    # 构建 Drive 服务
+    service = build('drive', 'v3', credentials=credentials, http=http)
     logger.info("✅ Google Drive API authenticated successfully.")
 
 except Exception as e:
