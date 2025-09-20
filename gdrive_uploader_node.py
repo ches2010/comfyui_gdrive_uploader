@@ -3,79 +3,82 @@ import folder_paths
 import numpy as np
 from PIL import Image
 import torch
+import json
+import requests
 
 # Google Drive API libraries
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-import logging
-import json
-
-# ✅ 新增：requests + 代理支持
-import requests
 from google.auth.transport.requests import Request as GoogleAuthRequest
+import logging
 
 # --- Configuration ---
 SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "service_account_key.json")
-SCOPES = ['https://www.googleapis.com/auth/drive.file']  # Only file access
-DEFAULT_FOLDER_ID = None  # Set to folder ID string if needed
+PROXY_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "proxy_config.json")
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Global Variables for Google Drive Auth ---
-service = None
-GDRIVE_AUTH_FAILED = False
+# --- Load Proxy Config (可运行时重载) ---
+def load_proxy_config():
+    if not os.path.exists(PROXY_CONFIG_FILE):
+        logger.warning(f"Proxy config not found. Creating default at {PROXY_CONFIG_FILE}")
+        default_config = {
+            "http_proxy": "http://127.0.0.1:10808",
+            "https_proxy": "http://127.0.0.1:10808",
+            "enabled": False
+        }
+        with open(PROXY_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(default_config, f, indent=2, ensure_ascii=False)
+        return default_config
+    else:
+        with open(PROXY_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
-# ✅ 代理配置（可提取为配置项）
-PROXY = {
-    'http': 'http://127.0.0.1:10808',
-    'https': 'http://127.0.0.1:10808',
-}
+# --- Helper: Create Drive Service with optional proxy ---
+def create_drive_service(use_proxy=False):
+    """
+    Dynamically create a Google Drive service instance.
+    If use_proxy=True, inject proxy session.
+    """
+    try:
+        if not os.path.exists(SERVICE_ACCOUNT_FILE):
+            raise FileNotFoundError("Service account key file not found.")
 
-# --- Initialize Google Drive Service (at module load) ---
-try:
-    if not os.path.exists(SERVICE_ACCOUNT_FILE):
-        raise FileNotFoundError(f"Service account key file not found at {SERVICE_ACCOUNT_FILE}. Please download it from Google Cloud Console.")
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
-    with open(SERVICE_ACCOUNT_FILE, 'r') as f:
-        key_data = json.load(f)
-        required_fields = ['type', 'client_email', 'token_uri', 'private_key']
-        missing_fields = [field for field in required_fields if field not in key_data]
-        if missing_fields:
-            raise ValueError(f"Service account key is invalid. Missing fields: {missing_fields}")
+        if use_proxy:
+            proxy_config = load_proxy_config()
+            proxy = {
+                'http': proxy_config.get("http_proxy", ""),
+                'https': proxy_config.get("https_proxy", "")
+            }
+            session = requests.Session()
+            session.proxies = proxy
+            session.verify = True
 
-    # 创建带代理的 session
-    session = requests.Session()
-    session.proxies = PROXY
-    session.verify = True  # 保持 SSL 验证
-    session.hooks = {
-    'response': lambda r, *args, **kwargs: print(f"🌐 Proxy Request: {r.url} → {r.status_code}")
-    }
+            # 注入代理 session 到 credentials
+            credentials._request = GoogleAuthRequest(session=session)
+            credentials.refresh(GoogleAuthRequest(session=session))
+            logger.info(f"🌐 Using proxy: {proxy}")
 
-    # 初始化 credentials
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        # 构建服务（只传 credentials）
+        service = build('drive', 'v3', credentials=credentials)
+        return service
 
-    # ✅ 关键：让 credentials 使用我们的代理 session
-    credentials._request = GoogleAuthRequest(session=session)
-
-    # 刷新 token（现在走代理）
-    credentials.refresh(GoogleAuthRequest(session=session))
-
-    # ✅ 只传 credentials，不传 http —— 避免冲突
-    service = build('drive', 'v3', credentials=credentials)
-    logger.info("✅ Google Drive API authenticated successfully.")
-
-except Exception as e:
-    logger.error(f"❌ Failed to initialize Google Drive API: {e}")
-    GDRIVE_AUTH_FAILED = True
+    except Exception as e:
+        logger.error(f"❌ Failed to create Drive service: {e}")
+        return None
 
 
 class ComfyUIGDriveUploader:
     """
-    A ComfyUI node to upload images to Google Drive.
+    A ComfyUI node to upload images to Google Drive with DYNAMIC proxy switching.
+    No restart needed!
     """
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -89,7 +92,10 @@ class ComfyUIGDriveUploader:
             "required": {
                 "images": ("IMAGE", ),
                 "filename_prefix": ("STRING", {"default": "GDriveUpload"}),
-                "gdrive_folder_id": ("STRING", {"default": DEFAULT_FOLDER_ID or ""}),
+                "gdrive_folder_id": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "use_proxy": ("BOOLEAN", {"default": False}),  # ← 动态开关！
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -102,18 +108,19 @@ class ComfyUIGDriveUploader:
     OUTPUT_NODE = True
     CATEGORY = "image/upload"
 
-    def upload(self, images, filename_prefix="GDriveUpload", gdrive_folder_id="", prompt=None, extra_pnginfo=None):
+    def upload(self, images, filename_prefix="GDriveUpload", gdrive_folder_id="", use_proxy=False, prompt=None, extra_pnginfo=None):
         """
-        Uploads images to Google Drive.
+        Uploads images to Google Drive — proxy setting is DYNAMIC per call.
         """
-        logger.info("Starting Google Drive upload process...")
+        logger.info(f"Starting Google Drive upload process... (Proxy: {'ON' if use_proxy else 'OFF'})")
 
-        # ✅ 检查 Google Drive 是否准备好
-        if GDRIVE_AUTH_FAILED or service is None:
-            logger.error("🛑 Google Drive authentication failed or not initialized. Check 'service_account_key.json' and logs.")
+        # ✅ 动态创建 service —— 每次上传独立决定是否走代理！
+        service = create_drive_service(use_proxy=use_proxy)
+        if not service:
+            logger.error("🛑 Google Drive service creation failed. Aborting upload.")
             return { "ui": { "images": [] } }
 
-        # ✅ 动态导入 PngInfo（避免顶层导入问题）
+        # 动态导入 PngInfo
         try:
             from PIL.PngImagePlugin import PngInfo
             disable_metadata = False
@@ -164,22 +171,11 @@ class ComfyUIGDriveUploader:
                 file_id = uploaded_file.get('id')
                 logger.info(f"☁️ Uploaded successfully. File ID: {file_id}")
 
-                # Optional: Make file public (uncomment if needed + adjust scope)
-                # service.permissions().create(
-                #     fileId=file_id,
-                #     body={"role": "reader", "type": "anyone"}
-                # ).execute()
-                # logger.info(f"🌐 File {file_id} is now publicly readable.")
-
                 results.append({
                     "filename": file,
                     "subfolder": "",
                     "type": self.type
                 })
-
-                # Optional: Clean up local file
-                # os.remove(local_file_path)
-                # logger.info(f"🗑️ Deleted local file: {local_file_path}")
 
             except Exception as upload_e:
                 error_msg = f"❌ Failed to upload {file}: {upload_e}"
@@ -190,7 +186,6 @@ class ComfyUIGDriveUploader:
                     "type": self.type
                 })
 
-        # Return UI update for ComfyUI frontend
         return { "ui": { "images": results } }
 
 
@@ -200,5 +195,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "GDriveUploader": "📤 Upload to Google Drive"
+    "GDriveUploader": "🔄 Upload to Google Drive (Dynamic Proxy)"
 }
