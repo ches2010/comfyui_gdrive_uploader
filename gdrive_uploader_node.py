@@ -50,6 +50,9 @@ try:
     session = requests.Session()
     session.proxies = PROXY
     session.verify = True  # 保持 SSL 验证
+    session.hooks = {
+    'response': lambda r, *args, **kwargs: print(f"🌐 Proxy Request: {r.url} → {r.status_code}")
+    }
 
     # 初始化 credentials
     credentials = service_account.Credentials.from_service_account_file(
