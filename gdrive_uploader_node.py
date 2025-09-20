@@ -1,4 +1,15 @@
 import os
+import socks
+import socket
+
+# 🌐 强制全局走代理（关键修复！）
+socks.set_default_proxy(socks.HTTP, "127.0.0.1", 10808)
+socket.socket = socks.socksocket
+os.environ['HTTP_PROXY'] = 'http://127.0.0.1:10808'
+os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:10808'
+
+# ========== 原有代码保持不变 ==========
+
 import folder_paths
 import numpy as np
 from PIL import Image
