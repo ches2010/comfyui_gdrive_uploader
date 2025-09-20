@@ -11,7 +11,7 @@ from googleapiclient.http import MediaFileUpload
 import logging
 import json
 
- ✅ 新增：requests + 代理支持
+# ✅ 新增：requests + 代理支持
 import requests
 from google.auth.transport.requests import Request as GoogleAuthRequest
 
