@@ -1,15 +1,4 @@
 import os
-import socks
-import socket
-
-# 🌐 强制全局走代理（关键修复！）
-socks.set_default_proxy(socks.HTTP, "127.0.0.1", 10808)
-socket.socket = socks.socksocket
-os.environ['HTTP_PROXY'] = 'http://127.0.0.1:10808'
-os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:10808'
-
-# ========== 原有代码保持不变 ==========
-
 import folder_paths
 import numpy as np
 from PIL import Image
@@ -21,6 +10,10 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import logging
 import json
+
+ ✅ 新增：requests + 代理支持
+import requests
+from google.auth.transport.requests import Request as GoogleAuthRequest
 
 # --- Configuration ---
 SERVICE_ACCOUNT_FILE = os.path.join(os.path.dirname(__file__), "service_account_key.json")
@@ -35,6 +28,12 @@ logger = logging.getLogger(__name__)
 service = None
 GDRIVE_AUTH_FAILED = False
 
+# ✅ 代理配置（可提取为配置项）
+PROXY = {
+    'http': 'http://127.0.0.1:10808',
+    'https': 'http://127.0.0.1:10808',
+}
+
 # --- Initialize Google Drive Service (at module load) ---
 try:
     if not os.path.exists(SERVICE_ACCOUNT_FILE):
@@ -47,9 +46,25 @@ try:
         if missing_fields:
             raise ValueError(f"Service account key is invalid. Missing fields: {missing_fields}")
 
+    # ✅ 创建带代理的 session
+    session = requests.Session()
+    session.proxies = PROXY
+    session.verify = True  # 保持 SSL 验证
+    
+    # ✅ 使用 session 初始化 credentials
     credentials = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    service = build('drive', 'v3', credentials=credentials)
+
+    # ✅ 刷新 token（走代理）
+    credentials.refresh(GoogleAuthRequest(session=session))
+
+    # ✅ 构建 Drive 服务，指定 requestBuilder 使用代理 session
+    service = build(
+        'drive',
+        'v3',
+        credentials=credentials,
+        requestBuilder=lambda: GoogleAuthRequest(session=session)
+    )
     logger.info("✅ Google Drive API authenticated successfully.")
 
 except Exception as e:
