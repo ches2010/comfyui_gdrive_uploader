@@ -3,5 +3,6 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 requests
+PySocks
 # msal # Optional, for easier authentication management
 python-telegram-bot>=20.0
